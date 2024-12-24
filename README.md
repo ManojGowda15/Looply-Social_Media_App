@@ -1,3 +1,6 @@
+![image alt](https://github.com/ManojGowda15/Looply-Social_Media_App/blob/8f43a1a18c680397e25f366f375663b1d84cee27/Interface_Looply.jpg)
+
+
 # Welcome to your Expo app 👋
 
 This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
