@@ -1,9 +1,8 @@
 import React from "react";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { theme } from "./../../constants/theme";
-import { liked } from "../../components/PostCard";
 
-const PostLike = ({ liked = true }) => {
+const PostLike = ({ liked = false }) => {
   return (
     <MaterialCommunityIcons
       name={liked ? "heart" : "heart-outline"}

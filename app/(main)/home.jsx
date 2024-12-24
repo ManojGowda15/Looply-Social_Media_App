@@ -27,6 +27,7 @@ const Home = () => {
   const router = useRouter();
 
   const [posts, setPosts] = useState([]);
+  const [hasMore, setHasMore] = useState(true);
   const scrollY = useRef(new Animated.Value(0)).current;
 
   const handlePostEvent = async (payload) => {
@@ -48,7 +49,7 @@ const Home = () => {
       )
       .subscribe();
 
-    getPosts();
+    // getPosts();
 
     return () => {
       supabase.removeChannel(postChannel);
@@ -56,10 +57,14 @@ const Home = () => {
   }, []);
 
   const getPosts = async () => {
-    limit += 10;
+    //Call the API here
+    if (!hasMore) return null;
+    limit += 4;
+
     console.log("Fetching posts", limit);
     let res = await fetchPosts(limit);
     if (res.success) {
+      if (posts.length == res.data.length) setHasMore(false);
       setPosts(res.data);
     }
   };
@@ -117,14 +122,25 @@ const Home = () => {
           renderItem={({ item }) => (
             <PostCard item={item} currentUser={user} router={router} />
           )}
+          onEndReached={() => {
+            getPosts();
+            console.log("End of the Post Section");
+          }}
+          onEndReachedThreshold={0}
           onScroll={Animated.event(
             [{ nativeEvent: { contentOffset: { y: scrollY } } }],
             { useNativeDriver: false }
           )}
           ListFooterComponent={
-            <View style={{ marginVertical: posts.length === 0 ? 200 : 30 }}>
-              <Loading />
-            </View>
+            hasMore ? (
+              <View style={{ marginVertical: posts.length === 0 ? 200 : 30 }}>
+                <Loading />
+              </View>
+            ) : (
+              <View style={{ marginVertical: 30 }}>
+                <Text style={styles.noPosts}>No More Posts</Text>
+              </View>
+            )
           }
         />
       </View>
@@ -165,5 +181,21 @@ const styles = StyleSheet.create({
   listStyle: {
     paddingTop: hp(10), // Ensures content starts below the header
     paddingHorizontal: wp(4),
+  },
+  noPosts: {
+    fontSize: hp(1.56),
+    textAlign: "center",
+    top: 10,
+    color: theme.colors.text,
+  },
+  pill: {
+    position: "absolute",
+    right: -10,
+    top: -4,
+    height: hp(2.2),
+    width: hp(2.2),
+    justifyContent: "center",
+    alignItems: "center",
+    borderRadius: 20,
   },
 });

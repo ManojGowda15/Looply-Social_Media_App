@@ -1,5 +1,13 @@
-import { Image, StyleSheet, Text, TouchableOpacity, View } from "react-native";
-import React from "react";
+import {
+  Alert,
+  Image,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
+import React, { useEffect, useState } from "react";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { theme } from "../constants/theme";
 import { hp, wp } from "../helpers/common";
 import Avatar from "./Avatar";
@@ -8,6 +16,7 @@ import Icons from "../assets/Icons";
 import { RenderHTML } from "react-native-render-html";
 import { getSupabaseFileUrl } from "../services/imageService";
 import { Video } from "expo-av";
+import { createPostLike, removePostLike } from "../services/postService";
 
 const textStyle = {
   color: theme.colors.dark,
@@ -18,33 +27,51 @@ const tagsStyles = {
   div: textStyle,
   p: textStyle,
   ol: textStyle,
-  h1: {
-    color: theme.colors.dark,
-  },
-  h4: {
-    color: theme.colors.dark,
-  },
+  h1: { color: theme.colors.dark },
+  h4: { color: theme.colors.dark },
 };
 
 const PostCard = ({ item, currentUser, router, hasShadow = true }) => {
-  const shadowStyles = {
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.06,
-    shadowRadius: 6,
-    elevation: 1,
-  };
+  const [likes, setLikes] = useState([]);
+  const [isLiked, setIsLiked] = useState(false);
 
-  const createdAt = moment(item?.created_at).format("MMM D");
+  useEffect(() => {
+    if (item?.postLikes) {
+      setLikes(item.postLikes);
+      setIsLiked(
+        item.postLikes.some((like) => like.userId === currentUser?.id)
+      );
+    }
+  }, [item?.postLikes, currentUser?.id]);
 
-  const likes = item?.likes || [];
+  const handleLike = async () => {
+    if (!currentUser?.id || !item?.id) {
+      Alert.alert("Post", "Please login to like posts");
+      return;
+    }
 
-  const liked = likes.some((like) => like.userId === currentUser?.id);
-
-  const openPostDetails = () => {
-    router.push(`/post/${item.id}`); // Navigate to post details page
+    try {
+      if (isLiked) {
+        const res = await removePostLike(item.id, currentUser.id);
+        if (res.success) {
+          setLikes(likes.filter((like) => like.userId !== currentUser.id));
+          console.log("Like Removed: ", res);
+          setIsLiked(false);
+        }
+      } else {
+        const result = await createPostLike({
+          userId: currentUser.id,
+          postId: item.id,
+        });
+        if (result.success) {
+          setLikes([...likes, result.data]);
+          setIsLiked(true);
+          console.log("Post Liked: ", result);
+        }
+      }
+    } catch (error) {
+      Alert.alert("Post", "Something went wrong");
+    }
   };
 
   return (
@@ -58,62 +85,65 @@ const PostCard = ({ item, currentUser, router, hasShadow = true }) => {
           />
           <View style={{ gap: 2 }}>
             <Text style={styles.username}>{item?.user?.name}</Text>
-            <Text style={styles.postTime}>{createdAt}</Text>
+            <Text style={styles.postTime}>
+              {moment(item?.created_at).format("MMM D")}
+            </Text>
           </View>
         </View>
-        <TouchableOpacity onPress={openPostDetails}>
+        <TouchableOpacity onPress={() => router.push(`/post/${item.id}`)}>
           <Icons name="threedothoriz" />
         </TouchableOpacity>
       </View>
 
-      {/* Post Body */}
       <View style={styles.content}>
-        <View style={styles.postBody}>
-          {item?.body && (
+        {item?.body && (
+          <View style={styles.postBody}>
             <RenderHTML
               contentWidth={wp(100)}
-              source={{ html: item?.body }}
+              source={{ html: item.body }}
               tagsStyles={tagsStyles}
             />
-          )}
-        </View>
-
-        {/* Post Media (Image or Video) */}
-        {item?.file && item?.file.includes("postImages") && (
-          <Image
-            source={{ uri: getSupabaseFileUrl(item?.file)?.uri }}
-            style={styles.postMedia}
-            resizeMode="cover"
-          />
+          </View>
         )}
 
-        {item?.file && item?.file.includes("postVideos") && (
-          <Video
-            style={[styles.postMedia, { height: hp(42.5) }]}
-            source={{ uri: getSupabaseFileUrl(item?.file)?.uri }}
-            useNativeControls
-            resizeMode="cover"
-            isLooping
-          />
-        )}
+        {item?.file &&
+          (item.file.includes("postImages") ? (
+            <Image
+              source={{ uri: getSupabaseFileUrl(item.file)?.uri }}
+              style={styles.postMedia}
+              resizeMode="cover"
+            />
+          ) : (
+            item.file.includes("postVideos") && (
+              <Video
+                style={[styles.postMedia, { height: hp(42.5) }]}
+                source={{ uri: getSupabaseFileUrl(item.file)?.uri }}
+                useNativeControls
+                resizeMode="cover"
+                isLooping
+              />
+            )
+          ))}
       </View>
 
-      {/* Like, Comment and Share Buttons */}
       <View style={styles.footer}>
         <View style={styles.footerButton}>
-          <TouchableOpacity>
-            <Icons name="postlike" liked={liked} />
+          <TouchableOpacity onPress={handleLike}>
+            <MaterialCommunityIcons
+              name={isLiked ? "heart" : "heart-outline"}
+              size={24}
+              color={isLiked ? theme.colors.rose : theme.colors.textLight}
+            />
           </TouchableOpacity>
+
           <Text style={styles.count}>{likes.length}</Text>
         </View>
-
         <View style={styles.footerButton}>
           <TouchableOpacity>
             <Icons name="cmt" />
           </TouchableOpacity>
           <Text style={styles.count}>0</Text>
         </View>
-
         <View style={styles.footerButton}>
           <TouchableOpacity>
             <Icons name="share" />
@@ -124,7 +154,12 @@ const PostCard = ({ item, currentUser, router, hasShadow = true }) => {
   );
 };
 
-export default PostCard;
+const shadowStyles = {
+  shadowOffset: { width: 0, height: 2 },
+  shadowOpacity: 0.06,
+  shadowRadius: 6,
+  elevation: 1,
+};
 
 const styles = StyleSheet.create({
   container: {
@@ -186,3 +221,5 @@ const styles = StyleSheet.create({
     fontSize: hp(1.8),
   },
 });
+
+export default PostCard;

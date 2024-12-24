@@ -8,7 +8,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import React, { useRef, useState } from "react";
+import React, { useRef, useState, useEffect } from "react";
 import ScreenWrapper from "../../components/ScreenWrapper";
 import Header from "../../components/Header";
 import { hp, wp } from "../../helpers/common";
@@ -32,49 +32,67 @@ const NewPost = () => {
   const [loading, setLoading] = useState(false);
   const [file, setFile] = useState(null);
 
-  // Request permission and pick image or video
-  const onPick = async (isImage) => {
-    let mediaConfig = {
-      mediaTypes: isImage
-        ? ImagePicker.MediaTypeOptions.Images
-        : ImagePicker.MediaTypeOptions.Videos,
-      allowsEditing: true,
-      aspect: isImage ? [4, 3] : undefined,
-      quality: 1,
+  useEffect(() => {
+    // Request permissions when component mounts
+    (async () => {
+      const { status } =
+        await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== "granted") {
+        Alert.alert(
+          "Permissions needed",
+          "Sorry, we need camera roll permissions to upload images and videos."
+        );
+      }
+    })();
+
+    // Cleanup function
+    return () => {
+      setFile(null);
+      bodyRef.current = "";
     };
+  }, []);
 
-    // Request permissions before opening image picker
-    const permissionResult =
-      await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (permissionResult.status !== "granted") {
+  const onPick = async (isImage) => {
+    try {
+      // Configure picker options
+      const options = {
+        mediaTypes: isImage
+          ? ImagePicker.MediaTypeOptions.Images
+          : ImagePicker.MediaTypeOptions.Videos,
+        allowsEditing: true,
+        aspect: isImage ? [4, 3] : undefined,
+        quality: 1,
+      };
+
+      // Launch picker
+      const result = await ImagePicker.launchImageLibraryAsync(options);
+      console.log("Picker result:", result); // For debugging
+
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        const selectedAsset = result.assets[0];
+        console.log("Selected asset:", selectedAsset); // For debugging
+        setFile(selectedAsset);
+      }
+    } catch (error) {
+      console.error("Media picker error:", error);
       Alert.alert(
-        "Permission Required",
-        "We need access to your media library to upload images or videos."
+        "Error",
+        "An error occurred while picking media. Please try again."
       );
-      return;
-    }
-
-    // Launch the image or video picker
-    const result = await ImagePicker.launchImageLibraryAsync(mediaConfig);
-
-    if (!result.canceled) {
-      setFile(result.assets[0]);
     }
   };
 
   const isLocalFile = (file) => {
-    if (!file) return null;
-    if (typeof file === "object") return true;
-    return false;
+    if (!file) return false;
+    return typeof file === "object" && file.uri;
   };
 
   const getFileType = (file) => {
     if (!file) return null;
     if (isLocalFile(file)) {
-      return file.type;
+      return file.type?.includes("video") ? "video" : "image";
     }
-
-    if (file.includes("postImages ")) {
+    if (typeof file === "string" && file.includes("postImages")) {
       return "image";
     }
     return "video";
@@ -86,6 +104,17 @@ const NewPost = () => {
       return file.uri;
     }
     return getSupabaseFileUrl(file)?.uri;
+  };
+
+  const resetForm = () => {
+    setFile(null);
+    bodyRef.current = "";
+    if (
+      editorRef.current &&
+      typeof editorRef.current.setContentHTML === "function"
+    ) {
+      editorRef.current.setContentHTML("");
+    }
   };
 
   const onSubmit = async () => {
@@ -100,18 +129,21 @@ const NewPost = () => {
       userId: user?.id,
     };
 
-    setLoading(true);
-    let res = await createOrUpdatePost(data);
-    setLoading(false);
+    try {
+      setLoading(true);
+      let res = await createOrUpdatePost(data);
 
-    if (res.success) {
-      setFile(null);
-      bodyRef.current = "";
-      editorRef.current?.setContentHtml("");
-      // Navigate to home screen after successful post using router.replace
-      router.replace("home"); // Adjust the path based on your route configuration
-    } else {
-      Alert.alert("Post", res.msg);
+      if (res.success) {
+        resetForm();
+        router.replace("home");
+      } else {
+        Alert.alert("Post", res.msg || "Failed to create post");
+      }
+    } catch (error) {
+      console.error("Post creation error:", error);
+      Alert.alert("Error", "An error occurred while creating the post");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -122,8 +154,11 @@ const NewPost = () => {
           title="Create Post"
           style={{ justifyContent: "center", marginLeft: 0 }}
         />
-        <ScrollView contentContainerStyle={{ gap: 20 }}>
-          {/* Avatar */}
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+        >
+          {/* Avatar and User Info */}
           <View style={styles.header}>
             <Avatar
               uri={user?.image}
@@ -131,7 +166,7 @@ const NewPost = () => {
               rounded={theme.radius.round}
             />
             <View style={styles.userInfoContainer}>
-              <Text style={styles.username}>{user && user.name}</Text>
+              <Text style={styles.username}>{user?.name}</Text>
               <Text style={styles.publicText}>Public</Text>
             </View>
           </View>
@@ -144,15 +179,13 @@ const NewPost = () => {
             />
           </View>
 
-          {/* Image or Video Preview */}
+          {/* Media Preview */}
           {file && (
             <View style={styles.file}>
               {getFileType(file) === "video" ? (
                 <Video
-                  style={{ flex: 1 }}
-                  source={{
-                    uri: getFileUri(file),
-                  }}
+                  style={styles.mediaPreview}
+                  source={{ uri: getFileUri(file) }}
                   useNativeControls
                   resizeMode="cover"
                   isLooping
@@ -161,38 +194,47 @@ const NewPost = () => {
                 <Image
                   source={{ uri: getFileUri(file) }}
                   resizeMode="cover"
-                  style={{ flex: 1 }}
+                  style={styles.mediaPreview}
                 />
               )}
-              <Pressable style={styles.closeIcon} onPress={() => setFile(null)}>
+              <Pressable
+                style={styles.closeIcon}
+                hitSlop={10}
+                onPress={() => setFile(null)}
+              >
                 <Icons name="del" color="white" />
               </Pressable>
             </View>
           )}
 
-          {/* Add Media */}
+          {/* Media Picker */}
           <View style={styles.media}>
-            <View style={styles.textEditor}>
+            <View style={styles.mediaTextContainer}>
               <Text style={styles.addImageText}>Add to your post</Text>
             </View>
             <View style={styles.mediaIcons}>
-              <TouchableOpacity onPress={() => onPick(true)}>
+              <TouchableOpacity
+                style={styles.mediaButton}
+                onPress={() => onPick(true)}
+              >
                 <Icons name="img" />
               </TouchableOpacity>
-              <TouchableOpacity onPress={() => onPick(false)}>
+              <TouchableOpacity
+                style={styles.mediaButton}
+                onPress={() => onPick(false)}
+              >
                 <Icons name="video" />
               </TouchableOpacity>
             </View>
           </View>
         </ScrollView>
 
-        {/* Post Button */}
+        {/* Submit Button */}
         <Button
-          buttonStyle={{
-            height: hp(6.2),
-          }}
+          buttonStyle={styles.postButton}
           title="Post"
           loading={loading}
+          disabled={loading}
           hasShadow={false}
           onPress={onSubmit}
         />
@@ -201,14 +243,16 @@ const NewPost = () => {
   );
 };
 
-export default NewPost;
-
 const styles = StyleSheet.create({
   container: {
     flex: 1,
     marginBottom: 30,
     paddingHorizontal: wp(4),
     gap: 1,
+  },
+  scrollContent: {
+    gap: 20,
+    paddingBottom: 20,
   },
   header: {
     flexDirection: "row",
@@ -228,7 +272,9 @@ const styles = StyleSheet.create({
     fontWeight: theme.fonts.medium,
     color: theme.colors.textLight,
   },
-  textEditor: {},
+  textEditor: {
+    minHeight: hp(15),
+  },
   media: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -239,10 +285,16 @@ const styles = StyleSheet.create({
     borderRadius: theme.radius.xl,
     borderColor: theme.colors.gray,
   },
+  mediaTextContainer: {
+    flex: 1,
+  },
   mediaIcons: {
     flexDirection: "row",
     alignItems: "center",
     gap: 15,
+  },
+  mediaButton: {
+    padding: 8,
   },
   addImageText: {
     fontSize: hp(1.9),
@@ -254,6 +306,12 @@ const styles = StyleSheet.create({
     width: "100%",
     borderRadius: theme.radius.xl,
     overflow: "hidden",
+    backgroundColor: theme.colors.gray,
+  },
+  mediaPreview: {
+    flex: 1,
+    width: "100%",
+    height: "100%",
   },
   closeIcon: {
     position: "absolute",
@@ -262,5 +320,12 @@ const styles = StyleSheet.create({
     padding: 5,
     borderRadius: 50,
     backgroundColor: "rgba(0, 0, 0, 0.34)",
+    zIndex: 1,
+  },
+  postButton: {
+    height: hp(6.2),
+    marginTop: 10,
   },
 });
+
+export default NewPost;

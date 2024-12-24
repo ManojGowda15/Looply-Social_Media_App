@@ -33,6 +33,13 @@
           "backgroundColor": "#ffffff"
         }
       ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "The app needs access to your photos to let you share them.",
+          "videosPermission": "The app needs access to your videos to let you share them."
+        }
+      ],
       "expo-video"
     ],
     "experiments": {
