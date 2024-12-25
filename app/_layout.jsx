@@ -3,13 +3,14 @@ import { Stack, useRouter } from "expo-router";
 import { AuthProvider, useAuth } from "../contexts/AuthContext";
 import { supabase } from "../lib/supabase";
 import { getUserData } from "../services/userService";
-import { LogBox } from "react-native";
+import { LogBox, Platform, Dimensions } from "react-native";
 
 LogBox.ignoreLogs([
   "Warning: TNodeChildrenRenderer",
   "Warning: MemoizedTNodeRenderer",
   "Warning: TRenderEngineProvider",
 ]);
+
 const _layout = () => {
   return (
     <AuthProvider>
@@ -20,13 +21,10 @@ const _layout = () => {
 
 const MainLayout = () => {
   const { setAuth, setUserData } = useAuth();
-  console.log("useAuth output:", useAuth());
   const router = useRouter();
 
   useEffect(() => {
     supabase.auth.onAuthStateChange((_event, session) => {
-      console.log("session user: ", session?.user?.id);
-
       if (session) {
         setAuth(session?.user);
         updateUserData(session?.user, session?.user?.email);
@@ -44,15 +42,38 @@ const MainLayout = () => {
   };
 
   return (
-    <Stack
-      screenOptions={{
-        headerShown: false,
-      }}
-    >
+    <Stack screenOptions={{ headerShown: false }}>
+      {/* Other screens */}
       <Stack.Screen
-        name="(main)/postDetails"
+        name="comments"
         options={{
-          presentation: "modal",
+          presentation: Platform.OS === "ios" ? "modal" : "transparentModal",
+          animation: "slide",
+          contentStyle: {
+            backgroundColor: Platform.OS === "ios" ? "white" : "transparent",
+          },
+          gestureEnabled: true,
+          gestureDirection: "vertical",
+          fullScreenGestureEnabled: true,
+          cardOverlayEnabled: true,
+          cardStyleInterpolator: ({ current: { progress } }) => ({
+            cardStyle: {
+              transform: [
+                {
+                  translateY: progress.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [Dimensions.get("window").height, 0],
+                  }),
+                },
+              ],
+            },
+            overlayStyle: {
+              opacity: progress.interpolate({
+                inputRange: [0, 1],
+                outputRange: [0, 0.5],
+              }),
+            },
+          }),
         }}
       />
     </Stack>

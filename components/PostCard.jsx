@@ -47,11 +47,8 @@ const PostCard = ({ item, currentUser, router, hasShadow = true }) => {
   const [loading, setLoading] = useState(false);
   const [loadingError, setLoadingError] = useState(null);
 
-  const openPostDetails = () => {
-    router.push({
-      pathname: "(main)/postDetails",
-      params: { postId: item?.id },
-    });
+  const openComments = () => {
+    router.push("/comments");
   };
 
   // Generate post URL
@@ -356,7 +353,7 @@ const PostCard = ({ item, currentUser, router, hasShadow = true }) => {
         <View style={styles.footerButton}>
           <TouchableOpacity
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-            onPress={openPostDetails}
+            onPress={openComments}
           >
             <Icons name="cmt" />
           </TouchableOpacity>
