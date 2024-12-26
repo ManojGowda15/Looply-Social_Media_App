@@ -1,6 +1,6 @@
 ![image alt](https://github.com/ManojGowda15/Looply-Social_Media_App/blob/238e66b51ff23f673b86382ba3f9eb0a9f5eb484/Interface_1.png)
 
-![image alt]()
+![image alt](https://github.com/ManojGowda15/Looply-Social_Media_App/blob/ef23fa2a18e9ab62d36fd66991818fd7923d87b2/Interface_2.png)
 
 
 # Welcome to your Expo app 👋
