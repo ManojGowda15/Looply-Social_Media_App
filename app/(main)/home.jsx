@@ -176,10 +176,10 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "center",
     alignItems: "center",
-    gap: 18,
+    gap: 22,
   },
   listStyle: {
-    paddingTop: hp(10), // Ensures content starts below the header
+    paddingTop: hp(6), // Ensures content starts below the header
     paddingHorizontal: wp(4),
   },
   noPosts: {
