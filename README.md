@@ -1,4 +1,4 @@
-![image alt]()
+![image alt](https://github.com/ManojGowda15/Looply-Social_Media_App/blob/238e66b51ff23f673b86382ba3f9eb0a9f5eb484/Interface_1.png)
 
 ![image alt]()
 
