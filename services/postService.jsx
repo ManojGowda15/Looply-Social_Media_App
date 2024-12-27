@@ -125,6 +125,34 @@ export const removePostLike = async (postId, userId) => {
   }
 };
 
+export const fetchPostDetails = async (postId) => {
+  try {
+    const { data, error } = await supabase
+      .from("posts")
+      .select(
+        `
+        *,
+        user:users (id, name, image),
+        postLikes (*)
+        `
+      )
+      .eq("id ", postId)
+      .single();
+
+    if (error) {
+      console.error("fetchPostDetails error:", error);
+      return {
+        success: false,
+        msg: "Could not fetch Post Details! Try again.",
+      };
+    }
+    return { success: true, data: data };
+  } catch (error) {
+    console.error("fetchPosts error:", error);
+    return { success: false, msg: "Could not fetch Post Details! Try again." };
+  }
+};
+
 export const createComment = async (comment) => {
   try {
     const { data, error } = await supabase

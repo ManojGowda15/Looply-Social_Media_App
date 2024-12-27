@@ -48,7 +48,7 @@ const PostCard = ({ item, currentUser, router, hasShadow = true }) => {
   const [loadingError, setLoadingError] = useState(null);
 
   const openComments = () => {
-    router.push("/comments");
+    router.push("postDetails");
   };
 
   // Generate post URL
