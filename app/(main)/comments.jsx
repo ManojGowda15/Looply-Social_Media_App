@@ -1,273 +1,137 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   Animated,
   PanResponder,
   Dimensions,
   LayoutAnimation,
-} from "react-native";
-import {
+  Alert,
   View,
   Text,
-  TextInput,
   FlatList,
-  TouchableOpacity,
   StatusBar,
   StyleSheet,
   Platform,
   UIManager,
+  KeyboardAvoidingView,
+  TextInput,
+  TouchableOpacity,
 } from "react-native";
+import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import { MaterialCommunityIcons, Feather } from "@expo/vector-icons";
 
 // Enable LayoutAnimation for Android
-if (Platform.OS === "android") {
-  if (UIManager.setLayoutAnimationEnabledExperimental) {
-    UIManager.setLayoutAnimationEnabledExperimental(true);
-  }
+if (
+  Platform.OS === "android" &&
+  UIManager.setLayoutAnimationEnabledExperimental
+) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
 }
 
 const { height: SCREEN_HEIGHT, width: SCREEN_WIDTH } = Dimensions.get("window");
-const MODAL_HEIGHT = SCREEN_HEIGHT * 0.8;
+const MODAL_HEIGHT = SCREEN_HEIGHT * 0.7;
 const FULL_HEIGHT = SCREEN_HEIGHT;
 
-const Comments = () => {
+const Comments = ({ post }) => {
   const router = useRouter();
-  const [comment, setComment] = useState("");
   const [comments, setComments] = useState([]);
-  const [expandedComment, setExpandedComment] = useState(null);
   const [isFullScreen, setIsFullScreen] = useState(false);
   const [modalHeight, setModalHeight] = useState(MODAL_HEIGHT);
+  const [isInputFocused, setIsInputFocused] = useState(false);
+  const [inputText, setInputText] = useState("");
 
+  // Defining translateY and borderRadius using useRef
   const translateY = useRef(new Animated.Value(0)).current;
-  const scale = useRef(new Animated.Value(1)).current;
   const borderRadius = useRef(new Animated.Value(24)).current;
-  const opacity = useRef(new Animated.Value(1)).current;
 
-  const calculateDerivedValues = (gestureState) => {
-    const dragDistance = Math.max(0, gestureState.dy);
-    const dragProgress = Math.min(dragDistance / (MODAL_HEIGHT * 0.5), 1);
-    const newScale = 1 - dragProgress * 0.1; // Scale between 1 and 0.9
-    const newBorderRadius = 24 + dragProgress * 16; // Border radius between 24 and 40
-    const newOpacity = 1 - dragProgress * 0.5; // Opacity between 1 and 0.5
+  useEffect(() => {
+    fetchComments();
+  }, [post?.id]);
 
-    return { newScale, newBorderRadius, newOpacity };
+  const fetchComments = async () => {
+    try {
+      // Replace with your fetchComments logic
+      // const response = await getComments(post.id);
+      // setComments(response.data);
+    } catch (err) {
+      Alert.alert("Error", "Failed to load comments");
+    }
   };
 
   const panResponder = PanResponder.create({
     onStartShouldSetPanResponder: () => true,
-    onMoveShouldSetPanResponder: (_, gestureState) =>
-      Math.abs(gestureState.dy) > 10,
+    onMoveShouldSetPanResponder: (_, gestureState) => {
+      const { dy } = gestureState;
+      return Math.abs(dy) > 10 && !isFullScreen;
+    },
     onPanResponderMove: (_, gestureState) => {
       if (!isFullScreen && gestureState.dy > 0) {
-        // Enhanced downward sliding animation
         translateY.setValue(gestureState.dy);
-        const { newScale, newBorderRadius, newOpacity } =
-          calculateDerivedValues(gestureState);
-        scale.setValue(newScale);
-        borderRadius.setValue(newBorderRadius);
-        opacity.setValue(newOpacity);
       }
     },
     onPanResponderRelease: (_, gestureState) => {
-      if (!isFullScreen && gestureState.dy < -50) {
-        // Expand to fullscreen with spring animation
-        LayoutAnimation.configureNext({
-          duration: 300,
-          create: { type: "easeInEaseOut", property: "opacity" },
-          update: { type: "spring", springDamping: 0.8 },
-          delete: { type: "easeInEaseOut", property: "opacity" },
-        });
-        setModalHeight(FULL_HEIGHT);
-        setIsFullScreen(true);
-
-        Animated.parallel([
-          Animated.spring(borderRadius, {
-            toValue: 0,
-            tension: 40,
-            friction: 8,
-            useNativeDriver: true,
-          }),
-          Animated.spring(opacity, {
-            toValue: 1,
-            tension: 40,
-            friction: 8,
-            useNativeDriver: true,
-          }),
-        ]).start();
-      } else if (isFullScreen && gestureState.dy > 50) {
-        // Collapse from fullscreen
-        LayoutAnimation.configureNext({
-          duration: 300,
-          create: { type: "easeInEaseOut", property: "opacity" },
-          update: { type: "spring", springDamping: 0.8 },
-          delete: { type: "easeInEaseOut", property: "opacity" },
-        });
-        setModalHeight(MODAL_HEIGHT);
-        setIsFullScreen(false);
-
-        Animated.parallel([
-          Animated.spring(borderRadius, {
-            toValue: 24,
-            tension: 40,
-            friction: 8,
-            useNativeDriver: true,
-          }),
-          Animated.spring(opacity, {
-            toValue: 1,
-            tension: 40,
-            friction: 8,
-            useNativeDriver: true,
-          }),
-        ]).start();
-      } else if (!isFullScreen && gestureState.dy > MODAL_HEIGHT * 0.2) {
-        // Enhanced closing animation
-        Animated.parallel([
-          Animated.timing(translateY, {
-            toValue: MODAL_HEIGHT,
-            duration: 300,
-            useNativeDriver: true,
-          }),
-          Animated.timing(scale, {
-            toValue: 0.8,
-            duration: 300,
-            useNativeDriver: true,
-          }),
-          Animated.timing(opacity, {
-            toValue: 0,
-            duration: 300,
-            useNativeDriver: true,
-          }),
-          Animated.spring(borderRadius, {
-            toValue: 40,
-            tension: 40,
-            friction: 8,
-            useNativeDriver: true,
-          }),
-        ]).start(() => router.back());
+      if (gestureState.dy < -50) {
+        expandModal();
+      } else if (gestureState.dy > MODAL_HEIGHT * 0.3) {
+        closeModal();
       } else {
-        // Reset to current state with spring animation
-        Animated.parallel([
-          Animated.spring(translateY, {
-            toValue: 0,
-            tension: 40,
-            friction: 8,
-            useNativeDriver: true,
-          }),
-          Animated.spring(scale, {
-            toValue: 1,
-            tension: 40,
-            friction: 8,
-            useNativeDriver: true,
-          }),
-          Animated.spring(borderRadius, {
-            toValue: isFullScreen ? 0 : 24,
-            tension: 40,
-            friction: 8,
-            useNativeDriver: true,
-          }),
-          Animated.spring(opacity, {
-            toValue: 1,
-            tension: 40,
-            friction: 8,
-            useNativeDriver: true,
-          }),
-        ]).start();
+        resetModal();
       }
     },
   });
 
-  // Rest of the component functions remain the same
-  const handleSubmitComment = () => {
-    if (comment.trim()) {
-      const newComment = {
-        id: String(Date.now()),
-        // username: "User_" + Math.floor(Math.random() * 1000),
-        comment: comment.trim(),
-        time: new Date().toLocaleTimeString(),
-      };
-      setComments([newComment, ...comments]);
-      setComment("");
+  const expandModal = () => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.spring);
+    setModalHeight(FULL_HEIGHT);
+    setIsFullScreen(true);
+    Animated.spring(borderRadius, {
+      toValue: 0,
+      useNativeDriver: true,
+    }).start();
+  };
+
+  const closeModal = () => {
+    Animated.timing(translateY, {
+      toValue: MODAL_HEIGHT,
+      duration: 300,
+      useNativeDriver: true,
+    }).start(() => {
+      router.back();
+    });
+  };
+
+  const resetModal = () => {
+    Animated.spring(translateY, {
+      toValue: 0,
+      useNativeDriver: true,
+    }).start();
+  };
+
+  const handleSendComment = () => {
+    if (inputText.trim()) {
+      // Handle sending comment
+      setInputText(""); // Clear input after sending
     }
   };
 
-  // const toggleLike = (commentId) => {
-  //   setComments(
-  //     comments.map((c) =>
-  //       c.id === commentId ? { ...c, likes: c.likes + 1 } : c
-  //     )
-  //   );
-  // };
-
-  // const giveAward = (commentId) => {
-  //   setComments(
-  //     comments.map((c) =>
-  //       c.id === commentId ? { ...c, awards: c.awards + 1 } : c
-  //     )
-  //   );
-  // };
-
   const renderComment = ({ item }) => (
-    <Animated.View
-      style={[
-        styles.commentContainer,
-        {
-          transform: [
-            {
-              scale: expandedComment === item.id ? scale : 1,
-            },
-          ],
-        },
-      ]}
-    >
-      <TouchableOpacity
-        style={styles.commentContent}
-        onPress={() =>
-          setExpandedComment(expandedComment === item.id ? null : item.id)
-        }
-      >
-        <View style={styles.commentHeader}>
-          <Text style={styles.username}>{item.username}</Text>
-          <Text style={styles.time}>{item.time}</Text>
-        </View>
-        <Text style={styles.commentText}>{item.comment}</Text>
+    <View style={styles.commentContainer}>
+      {/* <Text style={styles.username}>{item.username}</Text>
+      <Text style={styles.commentText}>{item.text}</Text> */}
+    </View>
+  );
 
-        {/* <View style={styles.interactionBar}>
-          <TouchableOpacity
-            style={styles.interactionButton}
-            onPress={() => toggleLike(item.id)}
-          >
-            <MaterialCommunityIcons
-              name="thumb-up-outline"
-              size={16}
-              color="#666"
-            />
-            <Text style={styles.interactionText}>{item.likes}</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.interactionButton}
-            onPress={() => giveAward(item.id)}
-          >
-            <MaterialCommunityIcons
-              name="star-outline"
-              size={16}
-              color="#666"
-            />
-            <Text style={styles.interactionText}>{item.awards}</Text>
-          </TouchableOpacity>
-        </View> */}
-      </TouchableOpacity>
-    </Animated.View>
+  const renderEmptyState = () => (
+    <View style={styles.emptyState}>
+      <Text style={styles.emptyStateText}>
+        No comments yet. Be the first to comment!
+      </Text>
+    </View>
   );
 
   return (
-    <Animated.View
-      style={[
-        styles.container,
-        {
-          opacity: opacity,
-        },
-      ]}
+    <KeyboardAvoidingView
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+      style={styles.container}
     >
       <Animated.View
         {...panResponder.panHandlers}
@@ -275,7 +139,7 @@ const Comments = () => {
           styles.modal,
           {
             height: modalHeight,
-            transform: [{ translateY }, { scale }],
+            transform: [{ translateY }],
             borderTopLeftRadius: borderRadius,
             borderTopRightRadius: borderRadius,
           },
@@ -283,198 +147,136 @@ const Comments = () => {
       >
         <StatusBar barStyle="light-content" />
         <View style={styles.header}>
-          <View style={styles.handle} />
           <MaterialCommunityIcons
             name="message-outline"
             size={24}
             color="#333"
           />
           <Text style={styles.headerText}>
-            {isFullScreen ? "All Comments" : "Comments"}
+            Comments {comments.length > 0 ? `(${comments.length})` : ""}
           </Text>
-          {isFullScreen && (
-            <TouchableOpacity
-              style={styles.closeButton}
-              onPress={() => {
-                LayoutAnimation.configureNext({
-                  duration: 300,
-                  create: { type: "easeInEaseOut", property: "opacity" },
-                  update: { type: "spring", springDamping: 0.8 },
-                  delete: { type: "easeInEaseOut", property: "opacity" },
-                });
-                setModalHeight(MODAL_HEIGHT);
-                setIsFullScreen(false);
-
-                Animated.spring(borderRadius, {
-                  toValue: 24,
-                  tension: 40,
-                  friction: 8,
-                  useNativeDriver: true,
-                }).start();
-              }}
-            >
-              <MaterialCommunityIcons
-                name="chevron-down"
-                size={24}
-                color="#333"
-              />
-            </TouchableOpacity>
-          )}
         </View>
 
         <FlatList
           data={comments}
           renderItem={renderComment}
-          keyExtractor={(item) => item.id}
-          style={[styles.commentsList, isFullScreen && styles.fullScreenList]}
-          showsVerticalScrollIndicator={false}
+          keyExtractor={(item) => item.id?.toString()}
+          style={styles.commentsList}
+          ListEmptyComponent={renderEmptyState}
         />
 
         <View style={styles.inputContainer}>
+          {isInputFocused && <Feather style={styles.inputIcon} />}
           <TextInput
-            value={comment}
-            onChangeText={setComment}
             placeholder="Share your thoughts..."
-            style={styles.input}
+            style={[styles.input, isInputFocused && styles.inputFocused]}
             multiline
+            maxLength={1000}
+            value={inputText}
+            onChangeText={setInputText}
+            onFocus={() => setIsInputFocused(true)}
+            onBlur={() => setIsInputFocused(false)}
           />
-          {comment.length > 0 && (
+          {inputText.trim().length > 0 && (
             <TouchableOpacity
+              onPress={handleSendComment}
               style={styles.sendButton}
-              onPress={handleSubmitComment}
             >
-              <Feather
-                name="send"
-                size={20}
-                color="#fff"
-                style={{ paddingRight: 2, paddingTop: 4 }}
-              />
+              <Feather name="send" size={20} color="#666" />
             </TouchableOpacity>
           )}
         </View>
       </Animated.View>
-    </Animated.View>
+    </KeyboardAvoidingView>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.5)",
-    justifyContent: "flex-end",
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
   },
   modal: {
-    backgroundColor: "#f8f9fa",
-  },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: "#eee",
-  },
-  handle: {
-    width: 40,
-    height: 4,
-    backgroundColor: "#ddd",
-    borderRadius: 2,
-    alignSelf: "center",
-    marginBottom: 16,
     position: "absolute",
-    top: 8,
-    left: (SCREEN_WIDTH - 40) / 2,
-  },
-  headerText: {
-    fontSize: 18,
-    fontWeight: "600",
-    marginLeft: 8,
-  },
-  closeButton: {
-    position: "absolute",
-    right: 16,
-    top: 16,
-  },
-  commentsList: {
-    flex: 1,
-    padding: 16,
-  },
-  fullScreenList: {
-    paddingTop: 8,
-  },
-  commentContainer: {
-    marginBottom: 16,
+    width: "100%",
     backgroundColor: "#fff",
-    borderRadius: 12,
-    elevation: 2,
+    bottom: 0,
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-  },
-  commentContent: {
-    padding: 16,
-  },
-  commentHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginBottom: 8,
-  },
-  username: {
-    fontWeight: "600",
-    color: "#333",
-  },
-  time: {
-    color: "#666",
-    fontSize: 12,
-  },
-  commentText: {
-    fontSize: 14,
-    lineHeight: 20,
-    color: "#444",
-  },
-  interactionBar: {
-    flexDirection: "row",
-    marginTop: 12,
-    paddingTop: 12,
-    borderTopWidth: 1,
-    borderTopColor: "#eee",
-  },
-  interactionButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginRight: 16,
-  },
-  interactionText: {
-    marginLeft: 4,
-    color: "#666",
-    fontSize: 12,
+    shadowOffset: {
+      width: 0,
+      height: -2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
   },
   inputContainer: {
     flexDirection: "row",
     alignItems: "center",
-    padding: 16,
+    padding: 8,
     backgroundColor: "#fff",
     borderTopWidth: 1,
-    borderTopColor: "#eee",
+    borderColor: "#ddd",
   },
   input: {
     flex: 1,
-    backgroundColor: "#f0f2f5",
-    borderRadius: 20,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
+    padding: 12,
+    borderWidth: 1,
+    marginLeft: 5,
+    borderColor: "#ddd",
+    borderRadius: 8,
+    backgroundColor: "#f9f9f9",
+    marginRight: 8,
     maxHeight: 100,
-    fontSize: 14,
+  },
+  inputFocused: {
+    borderColor: "#666",
+    backgroundColor: "#fff",
+  },
+  inputIcon: {
+    marginLeft: 8,
   },
   sendButton: {
-    marginLeft: 12,
-    backgroundColor: "#0095f6",
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    padding: 8,
+  },
+  header: {
+    padding: 16,
+    borderBottomWidth: 1,
+    borderColor: "#ddd",
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  headerText: {
+    fontSize: 18,
+    fontWeight: "bold",
+    marginLeft: 8,
+  },
+  commentsList: {
+    padding: 16,
+  },
+  commentContainer: {
+    marginBottom: 16,
+    padding: 12,
+    backgroundColor: "#f9f9f9",
+    borderRadius: 8,
+  },
+  username: {
+    fontWeight: "bold",
+    color: "#333",
+  },
+  commentText: {
+    color: "#333",
+    marginTop: 4,
+  },
+  emptyState: {
+    flex: 1,
     alignItems: "center",
     justifyContent: "center",
+    padding: 20,
+  },
+  emptyStateText: {
+    color: "#666",
+    textAlign: "center",
   },
 });
 
